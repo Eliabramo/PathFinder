@@ -8,9 +8,9 @@ blue =(0,0,255)
 
 class ball():
     def __init__(self,env_width,env_height):
-        self.radius = 3
-        self.step_size = 5
-        self.head = 0.0
+        self.radius = 5
+        self.step_size = 3
+        self.head = random.randint(0,359)
         self.width = env_width
         self.height = env_height
         self.position = (random.randint(0,self.width-1),random.randint(0,self.height-1))
@@ -19,7 +19,7 @@ class ball():
         self.head = self.head+turn
         dx = int(self.step_size * np.cos(self.head / (2 * np.pi)))
         dy = int(self.step_size * np.sin(self.head / (2 * np.pi)))
-        self.position[:] = self.position[:] + (dx,dy)
+        self.position = tuple(np.add(self.position, (dx,dy)))
         return self.position
 
 
@@ -28,8 +28,8 @@ class env():
         self.num_enemies = 10
         self.width = 800
         self.height = 400
-        self.screen = np.zeros((self.width,self.height,3),np.uint8)
-        self.red_balls = [ball(self.width,self.height) for b in xrange(self.num_enemies)]
+        self.screen = np.zeros((self.height,self.width,3),np.uint8)
+        self.red_balls = [ball(self.width,self.height) for b in range(self.num_enemies)]
         self.state = 0
         self.reward = 0
 
@@ -37,8 +37,9 @@ class env():
         return self.state
 
     def step(self,a):
+        self.screen = np.zeros((self.height, self.width, 3), np.uint8)
         for b in self.red_balls:
-            pos = b.step(3)
+            pos = b.step(0)
             cv2.circle(self.screen, b.position, b.radius, red, -1)
         return self.state, self.reward
 
@@ -57,6 +58,6 @@ if __name__ == '__main__':
     # cv2.imshow('screen', screen[:,:,::-1])
     # cv2.waitKey(-1)
     e = env()
-    for i in xrange(1000):
+    for i in range(1000):
        e.step(0)
        e.render()
