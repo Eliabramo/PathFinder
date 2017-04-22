@@ -13,19 +13,25 @@ class ball():
         self.head = random.randint(0,359)
         self.width = env_width
         self.height = env_height
-        self.position = (random.randint(0,self.width-1),random.randint(0,self.height-1))
+        self.position = random.randint(0,self.width-1),random.randint(0,self.height-1)
 
     def step(self,turn):
         self.head = self.head+turn
-        dx = int(self.step_size * np.cos(self.head / (2 * np.pi)))
-        dy = int(self.step_size * np.sin(self.head / (2 * np.pi)))
-        self.position = tuple(np.add(self.position, (dx,dy)))
+        dx = int(self.step_size * np.cos(self.head*np.pi/180))
+        dy = int(self.step_size * np.sin(self.head*np.pi/180))
+        new_positon = tuple(np.add(self.position, (dx,dy)))
+        if (new_positon[1] > self.height-self.radius or  new_positon[1] < self.radius):
+            self.head = - self.head
+        elif (new_positon[0] > self.width-self.radius or  new_positon[0] < self.radius):
+            self.head = 180 - self.head
+        else:
+            self.position = new_positon
         return self.position
 
 
 class env():
     def __init__(self):
-        self.num_enemies = 10
+        self.num_enemies = 100
         self.width = 800
         self.height = 400
         self.screen = np.zeros((self.height,self.width,3),np.uint8)
@@ -58,6 +64,6 @@ if __name__ == '__main__':
     # cv2.imshow('screen', screen[:,:,::-1])
     # cv2.waitKey(-1)
     e = env()
-    for i in range(1000):
+    for i in range(10000):
        e.step(0)
        e.render()
