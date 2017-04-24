@@ -52,6 +52,9 @@ class env():
     def render(self):
         cv2.imshow('screen', self.screen[:,:,::-1])
         cv2.waitKey(1)
+        #test
+        #test2
+        
 
 
 
