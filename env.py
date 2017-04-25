@@ -62,9 +62,41 @@ class env():
         pos = self.blue_ball.step(action)
         cv2.circle(self.screen, self.blue_ball.position, self.blue_ball.radius, blue, -1)
 
-        # calculate the reward
-
-        return self.state, self.view_angleself.reward
+        # calculate the reward and state
+        self.state = []
+        gp = self.green_ball.position
+        bp = self.blue_ball.position
+        r = self.blue_ball.radius
+        
+        # calculate the distance between the blue ball and the green ball
+        dist = sqrt((gp[0]-bp[0])**2 + (gp[1]-bp[1])**2) 
+        self.state.append(dist) 
+        
+        # find obstacles in viewing angles
+        for ang in self.view_angles:
+            dx = np.cos(ang * np.pi / 180)
+            dy = np.sin(ang * np.pi / 180)
+            view_dist = 0
+            for i in range(self.view_len):
+                posx = int(dx*(r+i))
+                posy = int(dy*(r+i))
+                # find wall or red ball
+                if (posx < 0 or posx > self.width-1 or
+                	   posy < 0 or posy > self.height-1 or
+                	   self.screen[posx,posy,0] = 255):
+                	   view_dist = -i
+                	   break
+                # find green ball
+                elif (self.screen[posx,posy,1] = 255):
+                	   view_dist = i
+                	   break
+            
+            self.state.append(view_dist)               	   
+        
+        # calculate reward 
+        
+        
+        return self.state, self.reward
 
     def render(self):
         ''' draw the screen for user observation '''
@@ -75,8 +107,9 @@ class env():
             dx = np.cos(ang * np.pi / 180)
             dy = np.sin(ang * np.pi / 180)
             for i in range(self.view_len):
-                self.screen[int(dx)]
-
+                posx = max(min(int(dx*(r+i)), self.width-1), 0)
+                posy = max(min(int(dy*(r+i)), self.height-1), 0)
+                self.screen[posx,posy,:] = white
 
         cv2.imshow('screen', self.screen[:,:,::-1])
         cv2.waitKey(1)
@@ -90,10 +123,6 @@ class env():
 
 
 if __name__ == '__main__':
-    # screen = np.zeros((400,800,3),np.uint8)
-    # cv2.circle(screen, (200,200), 100, red, -1)
-    # cv2.imshow('screen', screen[:,:,::-1])
-    # cv2.waitKey(-1)
     e = env()
     for i in range(10000):
        head = random.randint(-30,30)
