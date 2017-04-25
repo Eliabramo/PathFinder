@@ -9,7 +9,7 @@ white =(255,255,255)
 
 class ball():
     def __init__(self,env_width,env_height):
-        self.radius = 5
+        self.radius = 10
         self.step_size = 3
         self.head = random.randint(0,359)
         self.width = env_width
@@ -32,7 +32,7 @@ class ball():
 
 class env():
     def __init__(self):
-        self.num_enemies = 10
+        self.num_enemies = 50
         self.width = 800
         self.height = 400
         self.screen = np.zeros((self.height,self.width,3),np.uint8)
@@ -41,8 +41,8 @@ class env():
         self.blue_ball = ball(self.width, self.height)
         self.state = 0
         self.reward = 0
-        self.view_angles = [-20,-10,0,10,20]
-        self.view_len = 10
+        self.view_angles = [-40,-20,0,20,40]
+        self.view_len = 50
 
     def reset(self):
         return self.state
@@ -59,7 +59,7 @@ class env():
         cv2.circle(self.screen, self.green_ball.position, self.green_ball.radius, green, -1)
 
         # move blue ball
-        pos = self.blue_ball.step(action)
+        self.blue_ball.step(action)
         cv2.circle(self.screen, self.blue_ball.position, self.blue_ball.radius, blue, -1)
 
         # calculate the reward and state
@@ -67,29 +67,33 @@ class env():
         gp = self.green_ball.position
         bp = self.blue_ball.position
         r = self.blue_ball.radius
-        
+        bh = self.blue_ball.head
+
         # calculate the distance between the blue ball and the green ball
-        dist = sqrt((gp[0]-bp[0])**2 + (gp[1]-bp[1])**2) 
+        dist = np.sqrt((gp[0]-bp[0])**2 + (gp[1]-bp[1])**2)
         self.state.append(dist) 
         
         # find obstacles in viewing angles
         for ang in self.view_angles:
-            dx = np.cos(ang * np.pi / 180)
-            dy = np.sin(ang * np.pi / 180)
+            dx = np.cos((bh+ang) * np.pi / 180)
+            dy = np.sin((bh+ang) * np.pi / 180)
             view_dist = 0
             for i in range(self.view_len):
-                posx = int(dx*(r+i))
-                posy = int(dy*(r+i))
-                # find wall or red ball
+                posx = int(bp[0] + dx*(r+i))
+                posy = int(bp[1] + dy*(r+i))
+                # find walls or red ball
                 if (posx < 0 or posx > self.width-1 or
-                	   posy < 0 or posy > self.height-1 or
-                	   self.screen[posx,posy,0] = 255):
-                	   view_dist = -i
-                	   break
+                    posy < 0 or posy > self.height-1):
+                    view_dist = -i
+                    break
+                # find red balls
+                elif self.screen[posy,posx,0] == 255:
+                    view_dist = -i
+                    break
                 # find green ball
-                elif (self.screen[posx,posy,1] = 255):
-                	   view_dist = i
-                	   break
+                elif self.screen[posy,posx,1] == 255:
+                    view_dist = i
+                    break
             
             self.state.append(view_dist)               	   
         
@@ -103,16 +107,27 @@ class env():
         # draw viewing vectors on the screen
         p = self.blue_ball.position
         r = self.blue_ball.radius
+        h = self.blue_ball.head
+
         for ang in self.view_angles:
-            dx = np.cos(ang * np.pi / 180)
-            dy = np.sin(ang * np.pi / 180)
+            dx = np.cos((h+ang) * np.pi / 180)
+            dy = np.sin((h+ang) * np.pi / 180)
             for i in range(self.view_len):
-                posx = max(min(int(dx*(r+i)), self.width-1), 0)
-                posy = max(min(int(dy*(r+i)), self.height-1), 0)
-                self.screen[posx,posy,:] = white
+                posx = int(p[0] + dx*(r+i))
+                posy = int(p[1] + dy*(r+i))
+                if (posx < 0 or posx > self.width-1 or
+                    posy < 0 or posy > self.height - 1):
+                    break
+                else:
+                    self.screen[posy,posx,:] = white
+
+        debug_str = 'd: ' + str(int(self.state[0])) + ' v: '
+        for r in self.state[1:]:
+            debug_str += str(r) + ', '
+        cv2.putText(self.screen, debug_str, (10, self.height-10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, white)
 
         cv2.imshow('screen', self.screen[:,:,::-1])
-        cv2.waitKey(1)
+        cv2.waitKey(500)
         #test
         #test2
         
