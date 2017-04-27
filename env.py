@@ -9,6 +9,7 @@ white =(255,255,255)
 
 class ball():
     def __init__(self,env_width,env_height):
+        ''' init ball size '''
         self.radius = 10
         self.step_size = 3
         self.head = random.randint(0,359)
@@ -17,13 +18,15 @@ class ball():
         self.position = random.randint(self.radius,self.width-self.radius-1),random.randint(self.radius,self.height-self.radius-1)
 
     def step(self,turn):
+        ''' turn head by trun angle, and step step_size pixels.
+            if hit wall, change head according to Snell law '''
         self.head = self.head+turn
         dx = int(self.step_size * np.cos(self.head*np.pi/180))
         dy = int(self.step_size * np.sin(self.head*np.pi/180))
         new_positon = tuple(np.add(self.position, (dx,dy)))
-        if (new_positon[1] > self.height-self.radius or  new_positon[1] < self.radius):
-            self.head = - self.head
-        elif (new_positon[0] > self.width-self.radius or  new_positon[0] < self.radius):
+        if (new_positon[1] > self.height-self.radius-1 or new_positon[1] < self.radius+1):
+            self.head = -self.head
+        elif (new_positon[0] > self.width-self.radius-1 or new_positon[0] < self.radius+1):
             self.head = 180 - self.head
         else:
             self.position = new_positon
@@ -32,7 +35,7 @@ class ball():
 
 class env():
     def __init__(self):
-        self.num_enemies = 50
+        self.num_enemies = 20
         self.width = 800
         self.height = 400
         self.screen = np.zeros((self.height,self.width,3),np.uint8)
@@ -43,6 +46,8 @@ class env():
         self.reward = 0
         self.view_angles = [-40,-20,0,20,40]
         self.view_len = 50
+        self.last_dist_step = -1
+        self.total_reward = 0
 
     def reset(self):
         return self.state
@@ -60,9 +65,8 @@ class env():
 
         # move blue ball
         self.blue_ball.step(action)
-        cv2.circle(self.screen, self.blue_ball.position, self.blue_ball.radius, blue, -1)
 
-        # calculate the reward and state
+        # calculate the state
         self.state = []
         gp = self.green_ball.position
         bp = self.blue_ball.position
@@ -71,8 +75,9 @@ class env():
 
         # calculate the distance between the blue ball and the green ball
         dist = np.sqrt((gp[0]-bp[0])**2 + (gp[1]-bp[1])**2)
-        self.state.append(dist) 
-        
+        self.state.append(dist)
+        dist_step = int(dist/10)
+
         # find obstacles in viewing angles
         for ang in self.view_angles:
             dx = np.cos((bh+ang) * np.pi / 180)
@@ -97,9 +102,35 @@ class env():
             
             self.state.append(view_dist)               	   
         
-        # calculate reward 
-        
-        
+        # calculate reward
+        blue_ball_rect = np.zeros((2*r+1, 2*r+1, 3), np.int32)
+        cv2.circle(blue_ball_rect, (r,r), r, blue, -1)
+        screen_blue_ball_pos_roi = self.screen[bp[1]-r:bp[1]+r+1, bp[0]-r:bp[0]+r+1, :].astype(np.int32)
+        b_plus_r = blue_ball_rect[:,:,2] + screen_blue_ball_pos_roi[:,:,0]
+        b_plus_g = blue_ball_rect[:,:,2] + screen_blue_ball_pos_roi[:,:,1]
+
+        # blue ball hit red ball
+        if np.any(b_plus_r > 255):
+            self.reward = -10
+        # blue ball hit green ball
+        elif np.any(b_plus_g > 255):
+            self.reward = 50
+        # getting closer to green ball
+        elif dist_step < self.last_dist_step:
+            self.reward = 1
+        # getting away from the green ball
+        elif dist_step > self.last_dist_step:
+            self.reward = -1
+        else:
+            self.reward = 0
+
+        self.total_reward += self.reward
+
+        # draw the blue ball
+        cv2.circle(self.screen, bp, r, blue, -1)
+
+        self.last_dist_step = dist_step
+
         return self.state, self.reward
 
     def render(self):
@@ -125,17 +156,10 @@ class env():
         for r in self.state[1:]:
             debug_str += str(r) + ', '
         cv2.putText(self.screen, debug_str, (10, self.height-10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, white)
+        cv2.putText(self.screen, str(self.total_reward) + ' (' + str(self.reward) + ')', (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, white)
 
         cv2.imshow('screen', self.screen[:,:,::-1])
-        cv2.waitKey(500)
-        #test
-        #test2
-        
-
-
-
-
-
+        cv2.waitKey(5)
 
 if __name__ == '__main__':
     e = env()
