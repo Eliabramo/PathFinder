@@ -33,7 +33,7 @@ class ball():
         return self.position
 
 
-class env():
+class running_balls_env():
     def __init__(self):
         self.num_enemies = 20
         self.width = 800
@@ -162,8 +162,8 @@ class env():
         cv2.waitKey(5)
 
 if __name__ == '__main__':
-    e = env()
+    env = running_balls_env()
     for i in range(10000):
        head = random.randint(-30,30)
-       e.step(head)
-       e.render()
+       env.step(head)
+       env.render()
