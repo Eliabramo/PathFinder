@@ -16,6 +16,7 @@ class ball():
         self.width = env_width
         self.height = env_height
         self.position = random.randint(self.radius,self.width-self.radius-1),random.randint(self.radius,self.height-self.radius-1)
+        self.actions_size = 1
 
     def step(self,turn):
         ''' turn head by trun angle, and step step_size pixels.
@@ -42,12 +43,15 @@ class running_balls_env():
         self.red_balls = [ball(self.width,self.height) for b in range(self.num_enemies)]
         self.green_ball = ball(self.width,self.height)
         self.blue_ball = ball(self.width, self.height)
-        self.state = 0
         self.reward = 0
         self.view_angles = [-40,-20,0,20,40]
         self.view_len = 50
         self.last_dist_step = -1
         self.total_reward = 0
+        self.action_size = 3
+        self.state_size = len(self.view_angles)+1
+        self.state = np.zeros(self.state_size)
+        self.step_angle = 5
 
     def reset(self):
         return self.state
@@ -64,7 +68,13 @@ class running_balls_env():
         cv2.circle(self.screen, self.green_ball.position, self.green_ball.radius, green, -1)
 
         # move blue ball
-        self.blue_ball.step(action)
+        if action == 0:
+            turn = -self.step_angle
+        elif action == 1:
+            turn = 0
+        else:
+            turn = self.step_angle
+        self.blue_ball.step(turn)
 
         # calculate the state
         self.state = []
@@ -164,6 +174,6 @@ class running_balls_env():
 if __name__ == '__main__':
     env = running_balls_env()
     for i in range(10000):
-       head = random.randint(-30,30)
-       env.step(head)
+       action = np.argmax(np.random.rand(env.action_size))
+       env.step(action)
        env.render()
