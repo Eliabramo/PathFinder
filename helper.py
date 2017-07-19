@@ -25,7 +25,7 @@ def updateTarget(op_holder,sess):
         sess.run(op)
     total_vars = len(tf.trainable_variables())
     a = tf.trainable_variables()[0].eval(session=sess)
-    b = tf.trainable_variables()[total_vars/2].eval(session=sess)
+    b = tf.trainable_variables()[total_vars//2].eval(session=sess)
     if a.all() == b.all():
         print("Target Set Success")
     else:

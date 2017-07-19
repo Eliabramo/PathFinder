@@ -23,7 +23,7 @@ class Qnetwork():
             # The input must be reshaped into [batch x trace x units] for rnn processing,
             # and then returned to [batch x units] when sent through the upper levles.
             self.batch_size = tf.placeholder(dtype=tf.int32)
-            self.inputFlat = tf.reshape(slim.flatten(self.scalarInput), [self.batch_size, self.trainLength, state_size])
+            self.inputFlat = tf.reshape(self.scalarInput, [self.batch_size, self.trainLength, state_size])
             self.state_in = rnn_cell.zero_state(self.batch_size, tf.float32)
             self.rnn, self.rnn_state = tf.nn.dynamic_rnn(inputs=self.inputFlat, cell=rnn_cell, dtype=tf.float32, initial_state=self.state_in, scope=myScope + '_rnn')
             self.rnn = tf.reshape(self.rnn, shape=[-1, state_size])
