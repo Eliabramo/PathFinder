@@ -135,6 +135,12 @@ if not os.path.exists(log_path):
 #    wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 #    wr.writerow(['Episode', 'Length', 'Reward', 'IMG', 'LOG', 'SAL'])
 
+j = tf.Variable(0,dtype=tf.float32)
+d = tf.Variable(0,dtype=tf.float32)
+rAll = tf.Variable(0,dtype=tf.float32)
+tf.summary.scalar('j', j)
+tf.summary.scalar('d', d)
+tf.summary.scalar('rAll', rAll)
 merged = tf.summary.merge_all()
 
 with tf.Session() as sess:
@@ -151,7 +157,7 @@ with tf.Session() as sess:
         episodeBuffer = []
         # Reset environment and get first new observation
         s = env.reset()
-        d = False
+        d = 0
         rAll = 0
         j = 0
         state = (np.zeros([1, state_size]), np.zeros([1, state_size]))  # Reset the recurrent layer's hidden state
@@ -201,15 +207,18 @@ with tf.Session() as sess:
         # Add the episode to the experience buffer
         bufferArray = np.array(episodeBuffer)
         episodeBuffer = list(zip(bufferArray))
-        myBuffer.add(episodeBuffer)
+        if len(episodeBuffer) >= trace_length:      # don't add short episodes
+            myBuffer.add(episodeBuffer)
         jList.append(j)
         rList.append(rAll)
 
         # Periodically save the model.
         if i % 1000 == 0 and i != 0:
             saver.save(sess, log_path + '/model-' + str(i) + '.cptk')
+            summary = sess.run(merged)
+            writer.add_summary(summary, i)
             print("Saved Model")
-        if len(rList) % summaryLength == 0 and len(rList) != 0:
-            print(total_steps, np.mean(rList[-summaryLength:]), e)
-            #saveToCenter(i, rList, jList, np.reshape(np.array(episodeBuffer), [len(episodeBuffer), 5]), summaryLength, h_size, sess, mainQN, time_per_step)
+#        if len(rList) % summaryLength == 0 and len(rList) != 0:
+#            print(total_steps, np.mean(rList[-summaryLength:]), e)
+#            saveToCenter(i, rList, jList, np.reshape(np.array(episodeBuffer), [len(episodeBuffer), 5]), summaryLength, h_size, sess, mainQN, time_per_step)
     saver.save(sess, log_path + '/model-' + str(i) + '.cptk')

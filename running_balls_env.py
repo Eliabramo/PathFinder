@@ -36,7 +36,7 @@ class ball():
 
 class running_balls_env():
     def __init__(self):
-        self.num_enemies = 20
+        self.num_enemies = 0 #20
         self.width = 800
         self.height = 400
         self.screen = np.zeros((self.height,self.width,3),np.uint8)
