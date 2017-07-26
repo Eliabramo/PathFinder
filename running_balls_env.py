@@ -53,7 +53,7 @@ class running_balls_env():
         self.reset()
 
     def reset(self):
-        self.state = np.zeros(self.state_size)
+        self.state = np.zeros([1,self.state_size])
         self.d = False
         self.reward = 0
         return self.state
@@ -79,7 +79,7 @@ class running_balls_env():
         self.blue_ball.step(turn)
 
         # calculate the state
-        self.state = []
+        self.state = np.zeros([1,self.state_size])
         gp = self.green_ball.position
         bp = self.blue_ball.position
         r = self.blue_ball.radius
@@ -87,11 +87,12 @@ class running_balls_env():
 
         # calculate the distance between the blue ball and the green ball
         dist = np.sqrt((gp[0]-bp[0])**2 + (gp[1]-bp[1])**2)
-        self.state.append(dist)
+        self.state[0,0] = dist
         dist_step = int(dist/10)
 
         # find obstacles in viewing angles
-        for ang in self.view_angles:
+        for ang_i in range(len(self.view_angles)):
+            ang = self.view_angles[ang_i]
             dx = np.cos((bh+ang) * np.pi / 180)
             dy = np.sin((bh+ang) * np.pi / 180)
             view_dist = 0
@@ -111,8 +112,8 @@ class running_balls_env():
                 elif self.screen[posy,posx,1] == 255:
                     view_dist = i
                     break
-            
-            self.state.append(view_dist)               	   
+
+            self.state[0, ang_i+1] = view_dist
         
         # calculate reward
         blue_ball_rect = np.zeros((2*r+1, 2*r+1, 3), np.int32)
@@ -165,8 +166,8 @@ class running_balls_env():
                 else:
                     self.screen[posy,posx,:] = white
 
-        debug_str = 'd: ' + str(int(self.state[0])) + ' v: '
-        for r in self.state[1:]:
+        debug_str = 'd: ' + str(int(self.state[0,0])) + ' v: '
+        for r in self.state[0,1:]:
             debug_str += str(r) + ', '
         cv2.putText(self.screen, debug_str, (10, self.height-10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, white)
         cv2.putText(self.screen, str(self.total_reward) + ' (' + str(self.reward) + ')', (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, white)
@@ -178,5 +179,7 @@ if __name__ == '__main__':
     env = running_balls_env()
     for i in range(10000):
        action = np.argmax(np.random.rand(env.action_size))
-       env.step(action)
+       [s,r,d] = env.step(action)
+       if d:
+           break
        env.render()

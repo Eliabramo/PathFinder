@@ -104,8 +104,8 @@ tf.reset_default_graph()
 # We define the cells for the primary and target q-networks
 cell = tf.contrib.rnn.BasicLSTMCell(num_units=state_size, state_is_tuple=True)
 cellT = tf.contrib.rnn.BasicLSTMCell(num_units=state_size, state_is_tuple=True)
-mainQN = Qnetwork(env.state_size, cell, 'main')
-targetQN = Qnetwork(env.state_size, cellT, 'target')
+mainQN = Qnetwork(state_size, cell, 'main')
+targetQN = Qnetwork(state_size, cellT, 'target')
 
 init = tf.global_variables_initializer()
 
@@ -154,7 +154,7 @@ with tf.Session() as sess:
         d = False
         rAll = 0
         j = 0
-        state = np.zeros(state_size)  # Reset the recurrent layer's hidden state
+        state = (np.zeros([1, state_size]), np.zeros([1, state_size]))  # Reset the recurrent layer's hidden state
         # The Q-Network
         while j < max_epLength:
             j += 1
@@ -175,23 +175,25 @@ with tf.Session() as sess:
                 if total_steps % (update_freq) == 0:
                     updateTarget(targetOps, sess)
                     # Reset the recurrent layer's hidden state
-                    state_train = np.zeros([batch_size, state_size])
+                    state_train = (np.zeros([batch_size, state_size]), np.zeros([batch_size, state_size]))
 
                     trainBatch = myBuffer.sample(batch_size, trace_length)  # Get a random batch of experiences.
                     # Below we perform the Double-DQN update to the target Q-values
-                    Q1 = sess.run(mainQN.predict, feed_dict={mainQN.scalarInput: np.vstack(trainBatch[:, 3] / 255.0), mainQN.trainLength: trace_length, mainQN.state_in: state_train, mainQN.batch_size: batch_size})
-                    Q2 = sess.run(targetQN.Qout, feed_dict={targetQN.scalarInput: np.vstack(trainBatch[:, 3] / 255.0), targetQN.trainLength: trace_length, targetQN.state_in: state_train, targetQN.batch_size: batch_size})
+                    # trainBatch[:, 3] is s1's vector
+                    Q1 = sess.run(mainQN.predict, feed_dict={mainQN.scalarInput: np.vstack(trainBatch[:, 3]), mainQN.trainLength: trace_length, mainQN.state_in: state_train, mainQN.batch_size: batch_size})
+                    Q2 = sess.run(targetQN.Qout, feed_dict={targetQN.scalarInput: np.vstack(trainBatch[:, 3]), targetQN.trainLength: trace_length, targetQN.state_in: state_train, targetQN.batch_size: batch_size})
                     end_multiplier = -(trainBatch[:, 4] - 1)
                     doubleQ = Q2[range(batch_size * trace_length), Q1]
                     targetQ = trainBatch[:, 2] + (y * doubleQ * end_multiplier)
                     # Update the network with our target values.
+                    # trainBatch[:, 0] is s's vector
+                    # trainBatch[:, 1] is a's vector
                     sess.run(mainQN.updateModel, \
-                             feed_dict={mainQN.scalarInput: np.vstack(trainBatch[:, 0] / 255.0), mainQN.targetQ: targetQ, \
+                             feed_dict={mainQN.scalarInput: np.vstack(trainBatch[:, 0]), mainQN.targetQ: targetQ, \
                                         mainQN.actions: trainBatch[:, 1], mainQN.trainLength: trace_length, \
                                         mainQN.state_in: state_train, mainQN.batch_size: batch_size})
             rAll += r
             s = s1
-            sP = s1P
             state = state1
             if d == True:
                 break
