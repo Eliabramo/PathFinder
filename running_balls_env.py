@@ -39,23 +39,23 @@ class running_balls_env():
         self.num_enemies = 0 #20
         self.width = 800
         self.height = 400
-        self.screen = np.zeros((self.height,self.width,3),np.uint8)
-        self.red_balls = [ball(self.width,self.height) for b in range(self.num_enemies)]
-        self.green_ball = ball(self.width,self.height)
-        self.blue_ball = ball(self.width, self.height)
         self.view_angles = [-40,-20,0,20,40]
         self.view_len = 50
-        self.last_dist_step = -1
-        self.total_reward = 0
         self.action_size = 3
         self.state_size = len(self.view_angles)+1
         self.step_angle = 5
         self.reset()
 
     def reset(self):
+        self.screen = np.zeros((self.height, self.width, 3), np.uint8)
+        self.red_balls = [ball(self.width, self.height) for b in range(self.num_enemies)]
+        self.green_ball = ball(self.width, self.height)
+        self.blue_ball = ball(self.width, self.height)
         self.state = np.zeros([1,self.state_size])
         self.d = False
         self.reward = 0
+        self.last_dist_step = -1
+        self.total_reward = 0
         return self.state
 
     def step(self, action):
@@ -131,10 +131,10 @@ class running_balls_env():
             self.d = True
         # getting closer to green ball
         elif dist_step < self.last_dist_step:
-            self.reward = 1
+            self.reward = 5
         # getting away from the green ball
         elif dist_step > self.last_dist_step:
-            self.reward = -1
+            self.reward = -5
         else:
             self.reward = 0
 
