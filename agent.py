@@ -1,32 +1,29 @@
 import numpy as np
-import random
 import tensorflow as tf
-import matplotlib.pyplot as plt
-#import scipy.misc
-import os
-import csv
-import itertools
 import tensorflow.contrib.slim as slim
-import running_balls_env
-
-from helper import *
 
 class Qnetwork():
-    def __init__(self, state_size, rnn_cell, myScope):
+    def __init__(self, state_size, h_size, rnn_cell, myScope):
         with tf.name_scope(myScope):
             # The network recieves a frame from the game, flattened into an array.
             # It then resizes it and processes it through four convolutional layers.
-            self.scalarInput = tf.placeholder(shape=[None, state_size], dtype=tf.float32)
-
             self.trainLength = tf.placeholder(dtype=tf.int32)
+            self.batch_size = tf.placeholder(dtype=tf.int32)
+
+            #self.scalarInput = tf.placeholder(shape=[self.batch_size*self.trainLength, state_size], dtype=tf.float32)
+            self.scalarInput = tf.placeholder(shape=[None, state_size], dtype=tf.float32)
+            with tf.name_scope('layer0'):
+                self.W0 = tf.Variable(tf.random_normal([state_size, h_size]), name='W0')
+                self.B0 = tf.Variable(tf.random_normal([self.batch_size*self.trainLength, h_size]), name='B0')
+                self.L0 = tf.nn.relu(tf.matmul(self.scalarInput, self.W0) + self.B0)
+
             # We take the input and send it to a recurrent layer.
             # The input must be reshaped into [batch x trace x units] for rnn processing,
-            # and then returned to [batch x units] when sent through the upper levles.
-            self.batch_size = tf.placeholder(dtype=tf.int32)
-            self.inputFlat = tf.reshape(self.scalarInput, [self.batch_size, self.trainLength, state_size])
-            #self.inputFlat = tf.reshape(slim.flatten(self.scalarInput), [self.batch_size, self.trainLength, state_size])
+            # and then returned to [batch x units] when sent through the upper levels.
+
+            self.rnn_input = tf.reshape(self.L0, [self.batch_size, self.trainLength, h_size])
             self.state_in = rnn_cell.zero_state(self.batch_size, tf.float32)
-            self.rnn, self.rnn_state = tf.nn.dynamic_rnn(inputs=self.inputFlat, cell=rnn_cell, dtype=tf.float32, initial_state=self.state_in, scope=myScope + '_rnn')
+            self.rnn, self.rnn_state = tf.nn.dynamic_rnn(inputs=self.rnn_input, cell=rnn_cell, dtype=tf.float32, initial_state=self.state_in, scope=myScope + '_rnn')
             self.rnn = tf.reshape(self.rnn, shape=[-1, state_size])
             # The output from the recurrent player is then split into separate Value and Advantage streams
             self.streamA, self.streamV = tf.split(self.rnn, 2, 1)

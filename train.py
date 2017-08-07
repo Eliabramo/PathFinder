@@ -48,16 +48,17 @@ load_model = False #True  # Whether to load a saved model.
 log_path = "./train"  # The path to save our model to.
 state_size = env.state_size  # The size of the final convolutional layer before splitting it into Advantage and Value streams.
 action_size = env.action_size
+h_size = 512        #The size of the final convolutional layer before splitting it into Advantage and Value streams.
 time_per_step = 1  # Length of each step used in gif creation
 summaryLength = 100  # Number of epidoes to periodically save for analysis
 tau = 0.001
 
 tf.reset_default_graph()
 # We define the cells for the primary and target q-networks
-cell = tf.contrib.rnn.BasicLSTMCell(num_units=state_size, state_is_tuple=True)
-cellT = tf.contrib.rnn.BasicLSTMCell(num_units=state_size, state_is_tuple=True)
-mainQN = agent.Qnetwork(state_size, cell, 'main')
-targetQN = agent.Qnetwork(state_size, cellT, 'target')
+cell = tf.contrib.rnn.BasicLSTMCell(num_units=h_size, state_is_tuple=True)
+cellT = tf.contrib.rnn.BasicLSTMCell(num_units=h_size, state_is_tuple=True)
+mainQN = agent.Qnetwork(state_size, h_size, cell, 'main')
+targetQN = agent.Qnetwork(state_size, h_size, cellT, 'target')
 
 init = tf.global_variables_initializer()
 
@@ -110,7 +111,7 @@ with tf.Session() as sess:
         d = 0
         rAll = 0
         j = 0
-        state = (np.zeros([1, state_size]), np.zeros([1, state_size]))  # Reset the recurrent layer's hidden state
+        state = (np.zeros([1, h_size]), np.zeros([1, h_size]))  # Reset the recurrent layer's hidden state
         # The Q-Network
         while j < max_epLength:
             j += 1
@@ -131,7 +132,7 @@ with tf.Session() as sess:
                 if total_steps % (update_freq) == 0:
                     updateTarget(targetOps, sess)
                     # Reset the recurrent layer's hidden state
-                    state_train = (np.zeros([batch_size, state_size]), np.zeros([batch_size, state_size]))
+                    state_train = (np.zeros([batch_size, h_size]), np.zeros([batch_size, h_size]))
 
                     trainBatch = myBuffer.sample(batch_size, trace_length)  # Get a random batch of experiences.
                     # Below we perform the Double-DQN update to the target Q-values
