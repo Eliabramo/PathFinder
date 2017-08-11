@@ -12,28 +12,41 @@ import running_balls_env
 from helper import *
 
 class Qnetwork():
-    def __init__(self, state_size, rnn_cell, myScope):
+    def __init__(self, state_size, h_size, rnn_cell, myScope):
         with tf.name_scope(myScope):
+            self.trainLength = tf.placeholder(dtype=tf.int32)
+            self.batch_size = tf.placeholder(dtype=tf.int32)
+
             # The network recieves a frame from the game, flattened into an array.
             # It then resizes it and processes it through four convolutional layers.
             self.scalarInput = tf.placeholder(shape=[None, state_size], dtype=tf.float32)
 
-            self.trainLength = tf.placeholder(dtype=tf.int32)
+            with tf.name_scope('FC0'):
+                W0 = tf.Variable(tf.random_normal([state_size, h_size]), name='W0')
+                B0 = tf.Variable(tf.random_normal([h_size]), name='B0')
+                FC0out = tf.nn.relu(tf.matmul(self.scalarInput, W0) + B0, name='FC0out')
+
+            with tf.name_scope('FC1'):
+                W1 = tf.Variable(tf.random_normal([h_size, h_size]), name='W1')
+                B1 = tf.Variable(tf.random_normal([h_size]), name='B1')
+                FC1out = tf.nn.relu(tf.matmul(FC0out, W1) + B1, name='FC1out')
+
             # We take the input and send it to a recurrent layer.
             # The input must be reshaped into [batch x trace x units] for rnn processing,
             # and then returned to [batch x units] when sent through the upper levles.
-            self.batch_size = tf.placeholder(dtype=tf.int32)
-            self.inputFlat = tf.reshape(self.scalarInput, [self.batch_size, self.trainLength, state_size])
-            #self.inputFlat = tf.reshape(slim.flatten(self.scalarInput), [self.batch_size, self.trainLength, state_size])
-            self.state_in = rnn_cell.zero_state(self.batch_size, tf.float32)
-            self.rnn, self.rnn_state = tf.nn.dynamic_rnn(inputs=self.inputFlat, cell=rnn_cell, dtype=tf.float32, initial_state=self.state_in, scope=myScope + '_rnn')
-            self.rnn = tf.reshape(self.rnn, shape=[-1, state_size])
+            with tf.name_scope('RNN'):
+                self.rnn_input = tf.reshape(FC1out, [self.batch_size, self.trainLength, h_size])
+                self.state_in = rnn_cell.zero_state(self.batch_size, tf.float32)
+                self.rnn, self.rnn_state = tf.nn.dynamic_rnn(inputs=self.rnn_input, cell=rnn_cell, dtype=tf.float32, initial_state=self.state_in, scope=myScope + '_rnn')
+                self.rnn = tf.reshape(self.rnn, shape=[-1, h_size])
+
             # The output from the recurrent player is then split into separate Value and Advantage streams
-            self.streamA, self.streamV = tf.split(self.rnn, 2, 1)
-            self.AW = tf.Variable(tf.random_normal([state_size // 2, 2]))
-            self.VW = tf.Variable(tf.random_normal([state_size // 2, 1]))
-            self.Advantage = tf.matmul(self.streamA, self.AW)
-            self.Value = tf.matmul(self.streamV, self.VW)
+            with tf.name_scope('Duel'):
+                self.streamA, self.streamV = tf.split(self.rnn, 2, 1)
+                self.AW = tf.Variable(tf.random_normal([h_size // 2, 2]))
+                self.VW = tf.Variable(tf.random_normal([h_size // 2, 1]))
+                self.Advantage = tf.matmul(self.streamA, self.AW)
+                self.Value = tf.matmul(self.streamV, self.VW)
 
             self.salience = tf.gradients(self.Advantage, self.scalarInput)
             # Then combine them together to get our final Q-values.
