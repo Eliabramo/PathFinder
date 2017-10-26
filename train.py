@@ -31,7 +31,9 @@ class experience_buffer():
         return np.reshape(sampledTraces, [batch_size * trace_length, 5])
 
 # the game environment
-env = running_balls_env.running_balls_env()
+num_enemies = 0
+enemies_speed = 3
+env = running_balls_env.running_balls_env(num_enemies, enemies_speed)
 
 # Setting the training parameters
 batch_size = 4  # How many experience traces to use for each training step.
@@ -40,9 +42,9 @@ update_freq = 5  # How often to perform a training step.
 y = .99  # Discount factor on the target Q-values
 startE = 1.0  # Starting chance of random action
 endE = 0.1  # Final chance of random action
-anneling_steps = 10000  # How many steps of training to reduce startE to endE.
-num_episodes = 100000  # How many episodes of game environment to train network with.
+num_episodes = 1000  # How many episodes of game environment to train network with.
 max_epLength = 1000  # The max allowed length of our episode.
+anneling_steps = max_epLength*500  # How many steps of training to reduce startE to endE.
 pre_train_steps = batch_size*max_epLength  # How many steps of random actions before training begins.
 load_model = False #True  # Whether to load a saved model.
 log_path = "./train"  # The path to save our model to.
@@ -50,15 +52,17 @@ state_size = env.state_size  # The size of the final convolutional layer before 
 action_size = env.action_size
 h_size = 512 #The size of the final convolutional layer before splitting it into Advantage and Value streams.
 time_per_step = 1  # Length of each step used in gif creation
-summaryLength = 100  # Number of epidoes to periodically save for analysis
+summaryPeriod = num_episodes/100        # number of episodes before save summary
+checkpointPeriod = num_episodes/10      # number of episodes before save check point
+learning_rate = 0.01
 tau = 0.001
 
 tf.reset_default_graph()
 # We define the cells for the primary and target q-networks
 cell = tf.contrib.rnn.BasicLSTMCell(num_units=h_size, state_is_tuple=True)
 cellT = tf.contrib.rnn.BasicLSTMCell(num_units=h_size, state_is_tuple=True)
-mainQN = agent.Qnetwork(state_size, h_size, cell, 'main')
-targetQN = agent.Qnetwork(state_size, h_size, cellT, 'target')
+mainQN = agent.Qnetwork(state_size, h_size, cell, learning_rate, 'main')
+targetQN = agent.Qnetwork(state_size, h_size, cellT, learning_rate, 'target')
 
 init = tf.global_variables_initializer()
 
@@ -88,12 +92,19 @@ d_ = tf.placeholder(tf.float32)
 rAll_ = tf.placeholder(tf.float32)
 e_ = tf.placeholder(tf.float32)
 total_steps_ = tf.placeholder(tf.float32)
+total_actions_ = tf.placeholder(tf.float32)
 tf.summary.scalar('episode_length', j_)
 tf.summary.scalar('winnings', d_)
 tf.summary.scalar('total_reward', rAll_)
 tf.summary.scalar('e_greedy', e_)
 tf.summary.scalar('total_steps', total_steps_)
+tf.summary.histogram('total_actions', total_actions_)
 merged = tf.summary.merge_all()
+
+try:
+    sess = tf.Session()
+except:
+    pass
 
 with tf.Session() as sess:
     if load_model == True and os.path.exists(log_path + '*.ckpt'):
@@ -113,10 +124,10 @@ with tf.Session() as sess:
         d = 0
         rAll = 0
         j = 0
+        aList = np.zeros([1, max_epLength])
         state = (np.zeros([1, h_size]), np.zeros([1, h_size]))  # Reset the recurrent layer's hidden state
         # The Q-Network
         while j < max_epLength:
-            j += 1
             # Choose an action by greedily (with e chance of random action) from the Q-network
             if np.random.rand(1) < e or total_steps < pre_train_steps:
                 state1 = sess.run(mainQN.rnn_state, feed_dict={mainQN.scalarInput: s, mainQN.trainLength: 1, mainQN.state_in: state, mainQN.batch_size: 1})
@@ -151,12 +162,15 @@ with tf.Session() as sess:
                              feed_dict={mainQN.scalarInput: np.vstack(trainBatch[:, 0]), mainQN.targetQ: targetQ, \
                                         mainQN.actions: trainBatch[:, 1], mainQN.trainLength: trace_length, \
                                         mainQN.state_in: state_train, mainQN.batch_size: batch_size})
+
             rAll += r
             s = s1
             state = state1
+            aList[0,j] = a
             if d == True:
                 break
             #env.render()
+            j += 1
 
         # Add the episode to the experience buffer
         bufferArray = np.array(episodeBuffer)
@@ -167,13 +181,10 @@ with tf.Session() as sess:
         rList.append(rAll)
 
         # Periodically save the model.
-        if i % 100 == 0 and i != 0:
-            _, _, _, _, summary = sess.run([j_, d_, rAll_, e_, total_steps_, merged], feed_dict={j_: j, d_: d, rAll_: rAll, e_: e, total_steps_: total_steps})
+        if i % summaryPeriod == 0 and i != 0:
+            _, _, _, _, _, _, summary = sess.run([j_, d_, rAll_, e_, total_steps_, total_actions_, merged], feed_dict={j_: j, d_: d, rAll_: rAll, e_: e, total_steps_: total_steps, total_actions_: aList})
             writer.add_summary(summary, i)
-        if i % 1000 == 0 and i != 0:
+        if i % checkpointPeriod == 0 and i != 0:
             saver.save(sess, log_path + '/model-' + str(i) + '.ckpt')
             print("Saved Model")
-#        if len(rList) % summaryLength == 0 and len(rList) != 0:
-#            print(total_steps, np.mean(rList[-summaryLength:]), e)
-#            saveToCenter(i, rList, jList, np.reshape(np.array(episodeBuffer), [len(episodeBuffer), 5]), summaryLength, h_size, sess, mainQN, time_per_step)
     saver.save(sess, log_path + '/model-' + str(i) + '.ckpt')

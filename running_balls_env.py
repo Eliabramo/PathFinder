@@ -8,15 +8,14 @@ blue =(0,0,255)
 white =(255,255,255)
 
 class ball():
-    def __init__(self,env_width,env_height):
+    def __init__(self,env_width,env_height, step_size=3):
         ''' init ball size '''
         self.radius = 10
-        self.step_size = 3
+        self.step_size = step_size
         self.head = random.randint(0,359)
         self.width = env_width
         self.height = env_height
         self.position = random.randint(self.radius,self.width-self.radius-1),random.randint(self.radius,self.height-self.radius-1)
-        self.actions_size = 1
 
     def step(self,turn):
         ''' turn head by trun angle, and step step_size pixels.
@@ -35,21 +34,23 @@ class ball():
 
 
 class running_balls_env():
-    def __init__(self):
-        self.num_enemies = 0 #20
+    def __init__(self, num_enemies, enemies_speed):
+        self.num_enemies = num_enemies
+        self.enemies_step_size = enemies_speed
         self.width = 800
         self.height = 400
+        self.max_dist = np.sqrt(self.width**2 + self.height**2)
         self.view_angles = [-40,-20,0,20,40]
         self.view_len = 50
         self.action_size = 3
-        self.state_size = len(self.view_angles)+1
+        self.state_size = len(self.view_angles)+2
         self.step_angle = 5
         self.reset()
 
     def reset(self):
         self.screen = np.zeros((self.height, self.width, 3), np.uint8)
-        self.red_balls = [ball(self.width, self.height) for b in range(self.num_enemies)]
-        self.green_ball = ball(self.width, self.height)
+        self.red_balls = [ball(self.width, self.height, self.enemies_step_size) for b in range(self.num_enemies)]
+        self.green_ball = ball(self.width, self.height, 0)
         self.blue_ball = ball(self.width, self.height)
         self.state = np.zeros([1,self.state_size])
         self.d = False
@@ -86,8 +87,11 @@ class running_balls_env():
         bh = self.blue_ball.head
 
         # calculate the distance between the blue ball and the green ball
-        dist = np.sqrt((gp[0]-bp[0])**2 + (gp[1]-bp[1])**2)
-        self.state[0,0] = dist
+        dx = bp[0]-gp[0]
+        dy = gp[1]-bp[1]
+        dist = np.sqrt(dx**2 + dy**2)
+        self.state[0,0] = dx / self.max_dist          # normalize dist
+        self.state[0,1] = dy / self.max_dist  # normalize dist
         dist_step = int(dist/10)
 
         # find obstacles in viewing angles
@@ -113,7 +117,7 @@ class running_balls_env():
                     view_dist = i
                     break
 
-            self.state[0, ang_i+1] = view_dist
+            self.state[0, ang_i+2] = view_dist / self.view_len      # normalize view_dist
         
         # calculate reward
         blue_ball_rect = np.zeros((2*r+1, 2*r+1, 3), np.int32)
@@ -127,7 +131,7 @@ class running_balls_env():
             self.reward = -10
         # blue ball hit green ball
         elif np.any(b_plus_g > 255):
-            self.reward = 50
+            self.reward = 5000
             self.d = True
         # getting closer to green ball
         elif dist_step < self.last_dist_step:
@@ -166,8 +170,8 @@ class running_balls_env():
                 else:
                     self.screen[posy,posx,:] = white
 
-        debug_str = 'd: ' + str(int(self.state[0,0])) + ' v: '
-        for r in self.state[0,1:]:
+        debug_str = 'dx: ' + str(self.state[0,0]) + 'dy: ' + str(self.state[0,1]) + ' v: '
+        for r in self.state[0,2:]:
             debug_str += str(r) + ', '
         cv2.putText(self.screen, debug_str, (10, self.height-10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, white)
         cv2.putText(self.screen, str(self.total_reward) + ' (' + str(self.reward) + ')', (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, white)

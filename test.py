@@ -5,12 +5,14 @@ from helper import *
 # ### Testing the network
 
 # the game environment
-env = running_balls_env.running_balls_env()
+num_enemies = 0
+enemies_speed = 3
+env = running_balls_env.running_balls_env(num_enemies, enemies_speed)
 
 # In[ ]:
 
 e = 0.01  # The chance of chosing a random action
-num_episodes = 10000  # How many episodes of game environment to train network with.
+num_episodes = 1000  # How many episodes of game environment to train network with.
 load_model = True  # Whether to load a saved model.
 train_path = "./train"
 test_path = "./test"
@@ -20,16 +22,16 @@ action_size = env.action_size
 h_size = 512 #The size of the final convolutional layer before splitting it into Advantage and Value streams.
 max_epLength = 1000  # The max allowed length of our episode.
 time_per_step = 1  # Length of each step used in gif creation
-summaryLength = 100  # Number of epidoes to periodically save for analysis
-
+summaryPeriod = num_episodes/100  # Number of epidoes to periodically save for analysis
+learning_rate = 0.01
 
 # In[ ]:
 
 tf.reset_default_graph()
 cell = tf.contrib.rnn.BasicLSTMCell(num_units=h_size, state_is_tuple=True)
 cellT = tf.contrib.rnn.BasicLSTMCell(num_units=h_size, state_is_tuple=True)
-mainQN = agent.Qnetwork(state_size, h_size, cell, 'main')
-targetQN = agent.Qnetwork(state_size, h_size, cellT, 'target')
+mainQN = agent.Qnetwork(state_size, h_size, cell, learning_rate, 'main')
+targetQN = agent.Qnetwork(state_size, h_size, cellT, learning_rate, 'target')
 
 init = tf.global_variables_initializer()
 
@@ -47,9 +49,11 @@ if not os.path.exists(test_path):
 j_ = tf.placeholder(tf.float32)
 d_ = tf.placeholder(tf.float32)
 rAll_ = tf.placeholder(tf.float32)
+total_actions_ = tf.placeholder(tf.float32)
 tf.summary.scalar('episode_length', j_)
 tf.summary.scalar('winnings', d_)
 tf.summary.scalar('total_reward', rAll_)
+tf.summary.histogram('total_actions', total_actions_)
 merged = tf.summary.merge_all()
 
 with tf.Session() as sess:
@@ -69,11 +73,11 @@ with tf.Session() as sess:
         d = 0
         rAll = 0
         j = 0
+        aList = np.zeros([1, max_epLength])
         state = (np.zeros([1, h_size]), np.zeros([1, h_size]))  # Reset the recurrent layer's hidden state
 
         # The Q-Network
         while j < max_epLength:  # If the agent takes longer than 200 moves to reach either of the blocks, end the trial. j+=1
-            j += 1
             a, state1 = sess.run([mainQN.predict, mainQN.rnn_state], feed_dict={mainQN.scalarInput:s, mainQN.trainLength:1, mainQN.state_in:state, mainQN.batch_size:1})
             a = a[0]
             s1,r,d = env.step(a)
@@ -81,18 +85,19 @@ with tf.Session() as sess:
             rAll += r
             s = s1
             state = state1
+            aList[0, j] = a
             env.render()
             if d == True:
                 break
-
+            j += 1
 
         jList.append(j)
         rList.append(rAll)
 
         # Periodically save the model.
-        if i % 100 == 0 and i != 0:
-            _, _, _, summary = sess.run([j_, d_, rAll_, merged], feed_dict={j_: j, d_: d, rAll_: rAll})
+        if i % summaryPeriod == 0 and i != 0:
+            _, _, _, _, summary = sess.run([j_, d_, rAll_, total_actions_, merged], feed_dict={j_: j, d_: d, rAll_: rAll, total_actions_: aList})
             writer.add_summary(summary, i)
-        if len(rList) % summaryLength == 0 and len(rList) != 0:
-            print (total_steps,np.mean( rList[-summaryLength:]), e)
+        if len(rList) % summaryPeriod == 0 and len(rList) != 0:
+            print (total_steps,np.mean( rList[-summaryPeriod:]), e)
 print ("Percent of succesful episodes: " + str(sum(rList)/ num_episodes) + "%")
